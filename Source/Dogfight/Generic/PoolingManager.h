@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "UObject/NoExportTypes.h"
+#include "GameFramework/Actor.h"
 
 #include "Engine/World.h"
 
@@ -16,24 +16,19 @@ class UWorld;
  * ServerSide only. Spawned by the GameMode and used by the Server to maintain resources.
  */
 UCLASS()
-class DOGFIGHT_API UPoolingManager : public UObject
+class DOGFIGHT_API APoolingManager : public AActor
 {
 	GENERATED_BODY()
 	
 	UPROPERTY()
 	TArray<AProjectileBase*> ProjectilePool;
 
-	UPROPERTY()
-	UWorld* GameModeWorld;
-
 public:
 
-	UPoolingManager();
+	APoolingManager();
 
 	/** Tries to reactivate a disabled projectile of the requested class. Will create one if none are available. Projectile is not moved.*/
 	AProjectileBase* GetProjectileOfClass(TSubclassOf<AProjectileBase> ProjectileClass);
-
-	void SetWorld(UWorld* GameWorld);
 
 	void OnGameEnd();
 };

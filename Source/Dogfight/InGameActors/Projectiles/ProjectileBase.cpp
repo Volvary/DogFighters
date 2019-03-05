@@ -9,6 +9,27 @@ AProjectileBase::AProjectileBase()
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
+	bReplicates = true;
+	bAlwaysRelevant = true;
+	bReplicateMovement = true;
+}
+
+void AProjectileBase::Server_DisableProjectile_Implementation()
+{
+	DisableProjectile();
+}
+bool AProjectileBase::Server_DisableProjectile_Validate()
+{
+	return true;
+}
+
+void AProjectileBase::Server_EnableProjectile_Implementation()
+{
+	EnableProjectile();
+}
+bool AProjectileBase::Server_EnableProjectile_Validate()
+{
+	return true;
 }
 
 void AProjectileBase::EnableProjectile_Implementation()
@@ -32,6 +53,22 @@ void AProjectileBase::DisableProjectile_Implementation()
 void AProjectileBase::SetLifetime(float NewLifetime)
 {
 	GetWorldTimerManager().SetTimer(LifetimeHandle, this, &AProjectileBase::DisableProjectile, NewLifetime, false);
+}
+
+void AProjectileBase::Server_SetStartPoint_Implementation(FTransform NewTransform)
+{
+	SetActorTransform(NewTransform);
+
+	Replicate_SetStartPoint(NewTransform);
+}
+bool AProjectileBase::Server_SetStartPoint_Validate(FTransform NewTransform)
+{
+	return true;
+}
+
+void AProjectileBase::Replicate_SetStartPoint_Implementation(FTransform NewTransform)
+{
+	SetActorTransform(NewTransform);
 }
 
 // Called when the game starts or when spawned

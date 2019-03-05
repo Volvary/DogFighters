@@ -10,15 +10,19 @@
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
-#include "PlaneComponents/FlyingCharacterMovementComponent.h"
-
-#include "PlaneComponents/WeaponBase.h"
-#include "Dogfight.h"
-
 #include "Engine/Engine.h"
 #include "TimerManager.h"
 
-#include "Generic/PlayGameMode.h"
+#include "PlaneComponents/FlyingCharacterMovementComponent.h"
+#include "PlaneComponents/WeaponBase.h"
+
+#include "Generic/GameMode/PlayGameMode.h"
+#include "Generic/PlayerHUD.h"
+#include "Generic/DogfighterPlayerController.h"
+
+#include "Dogfight.h"
+
+#include "DamageTypes/DamageImpact.h"
 
 APlaneCharacter::APlaneCharacter(const FObjectInitializer& OI)
 	: Super(OI.SetDefaultSubobjectClass<UFlyingCharacterMovementComponent>(APlaneCharacter::CharacterMovementComponentName))
@@ -86,17 +90,27 @@ APlaneCharacter::APlaneCharacter(const FObjectInitializer& OI)
 
 float APlaneCharacter::TakeDamage(float Damage, FDamageEvent const & DamageEvent, AController * EventInstigator, AActor * DamageCauser)
 {
-	const float ActualDamage = Super::TakeDamage(Damage, DamageEvent, EventInstigator, DamageCauser);
+	float ActualDamage = Super::TakeDamage(Damage, DamageEvent, EventInstigator, DamageCauser);
+
+	if (DamageEvent.DamageTypeClass == UDamageImpact::StaticClass())
+	{
+		ActualDamage *= ImpactResilience;
+	}
 
 	if (ActualDamage > 0.f)
 	{
 		CurrentHealth -= ActualDamage;
 
+		ADogfighterPlayerController* PC = Cast<ADogfighterPlayerController>(GetController());
+
+		if (PC != nullptr)
+		{
+			PC->UpdateHealtRemaining(CurrentHealth/MaxHealth);
+		}
+
 		if (CurrentHealth <= 0)
 		{
-			//TODO: Die
-			//Show Death log (X killed you with Y)
-			//Switch to Death Cam
+			Server_OnPlayerDeath(DamageCauser);
 		}
 	}
 
@@ -109,7 +123,7 @@ void APlaneCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	UPoolingManager* PoolingManager = nullptr;
+	APoolingManager* PoolingManager = nullptr;
 
 	//PoolingManager is held serverside (in GM), so no use in pulling it ClientSide.
 	if(HasAuthority()){
@@ -127,6 +141,7 @@ void APlaneCharacter::BeginPlay()
 		PrimaryWeapon = GetWorld()->SpawnActor<AWeaponBase>(PrimaryWeaponClass);
 		PrimaryWeapon->SetWeaponOwner(this);
 		PrimaryWeapon->SetPoolingManager(PoolingManager);
+		PrimaryWeapon->AttachToActor(this,FAttachmentTransformRules(EAttachmentRule::SnapToTarget,EAttachmentRule::SnapToTarget,EAttachmentRule::KeepRelative, true));
 	}
 			
 	if (SecondaryWeaponClass == AWeaponBase::StaticClass())
@@ -139,6 +154,7 @@ void APlaneCharacter::BeginPlay()
 		SecondaryWeapon = GetWorld()->SpawnActor<AWeaponBase>(SecondaryWeaponClass);
 		SecondaryWeapon->SetWeaponOwner(this);
 		SecondaryWeapon->SetPoolingManager(PoolingManager);
+		SecondaryWeapon->AttachToActor(this,FAttachmentTransformRules(EAttachmentRule::SnapToTarget,EAttachmentRule::SnapToTarget,EAttachmentRule::KeepRelative, true));
 	}
 	
 	bPrimaryWeaponReady = bSecondaryWeaponReady = true;
@@ -146,7 +162,7 @@ void APlaneCharacter::BeginPlay()
 
 void APlaneCharacter::Server_PrimaryWeaponFire_Implementation()
 {
-	if (PrimaryWeapon != nullptr)
+	if (PrimaryWeapon != nullptr && bAlive)
 	{
 		PrimaryWeapon->Fire();
 
@@ -166,9 +182,16 @@ bool APlaneCharacter::Server_PrimaryWeaponFire_Validate()
 
 void APlaneCharacter::Server_SecondaryWeaponFire_Implementation()
 {
-	if (SecondaryWeapon != nullptr)
+	if (SecondaryWeapon != nullptr && bAlive)
 	{
+		SecondaryWeapon->Fire();
 
+		if (PrimaryWeapon->StaticClass == SecondaryWeapon->StaticClass && PrimaryWeapon != nullptr)
+		{
+			PrimaryWeapon->SameWeaponFired();
+		}
+
+		GetWorldTimerManager().SetTimer(SecondaryFireTimer, this, &APlaneCharacter::Server_SecondaryWeaponReady, SecondaryWeapon->GetFireRate(), false);
 	}
 }
 bool APlaneCharacter::Server_SecondaryWeaponFire_Validate()
@@ -180,7 +203,7 @@ void APlaneCharacter::Server_PrimaryWeaponReady_Implementation()
 {
 	if (PrimaryWeapon != nullptr)
 	{
-		if (bFiringPrimaryWeapon && PrimaryWeapon->CanFireAutomatic())
+		if (bFiringPrimaryWeapon && PrimaryWeapon->CanFireAutomatic() && bAlive)
 		{
 			Server_PrimaryWeaponFire();
 		}
@@ -200,12 +223,85 @@ void APlaneCharacter::Server_SecondaryWeaponReady_Implementation()
 {
 	if (SecondaryWeapon != nullptr)
 	{
-
+		if (bFiringSecondaryWeapon && SecondaryWeapon->CanFireAutomatic() && bAlive)
+		{
+			Server_SecondaryWeaponFire();
+		}
+		else
+		{
+			bSecondaryWeaponReady = true;
+		}
 	}
 }
 bool APlaneCharacter::Server_SecondaryWeaponReady_Validate()
 {
 	return true;
+}
+
+void APlaneCharacter::Server_OnPlayerDeath_Implementation(AActor* Killer)
+{	
+	Replicate_OnPlayerDeath();
+
+	if (Controller != nullptr)
+	{
+		ADogfighterPlayerController* PlayerController = Cast<ADogfighterPlayerController>(Controller);
+
+		if (PlayerController != nullptr)
+		{
+			PlayerController->ControlledCharacterDied(this, Killer);
+		}
+	}
+
+	//TODO:
+	//Show Death log (X killed you with Y)
+	//Switch to Death Cam
+
+}
+bool APlaneCharacter::Server_OnPlayerDeath_Validate(AActor* Killer){ return true; }
+
+void APlaneCharacter::Replicate_OnPlayerDeath_Implementation()
+{
+	Replicate_DisablePlane();
+
+	if(PlayerController != nullptr){
+		PlayerController->UpdateHealtRemaining(0.0f);
+	}
+
+	//TODO: Play Clienside Explosion
+}
+
+void APlaneCharacter::Server_OnPlayerRespawn_Implementation(FTransform RespawnLocation)
+{
+	SetActorTransform(RespawnLocation);
+
+	CurrentForwardSpeed = MinSpeed;
+
+	CurrentHealth = MaxHealth;
+
+	//Show the Plane
+	PlaneMesh->SetHiddenInGame(false);
+	SetActorEnableCollision(true);
+
+	Replicate_OnPlayerRespawn(RespawnLocation);
+
+	bAlive = true;
+}
+bool APlaneCharacter::Server_OnPlayerRespawn_Validate(FTransform RespawnLocation)
+{
+	return true;
+}
+
+void APlaneCharacter::Replicate_OnPlayerRespawn_Implementation(FTransform RespawnLocation)
+{
+	SetActorTransform(RespawnLocation);
+
+	CurrentHealth = MaxHealth;
+
+	Client_OnPlayerRespawn();
+
+	//Show the Plane
+	PlaneMesh->SetHiddenInGame(false);
+	SetActorEnableCollision(true);
 }
 
 // Called every frame
@@ -217,12 +313,29 @@ void APlaneCharacter::Tick(float DeltaTime)
 void APlaneCharacter::NotifyHit(class UPrimitiveComponent* MyComp, class AActor* Other, class UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit)
 {
 	Super::NotifyHit(MyComp, Other, OtherComp, bSelfMoved, HitLocation, HitNormal, NormalImpulse, Hit);
+	
+	if (HasAuthority())
+	{
+		float AngleOfImpact = FMath::RadiansToDegrees(acosf(FVector::DotProduct(GetActorForwardVector(), HitNormal)));
 
-	//TODO: Replace with Death.
+		//If the player hits a wall too directly, kill the player.
+		if (AngleOfImpact > 170)
+		{
+			Server_OnPlayerDeath(Other);
+		}
+
+		FDamageEvent Event;
+		Event.DamageTypeClass = UDamageImpact::StaticClass();
+
+		Other->TakeDamage((AngleOfImpact - 90), Event, GetController(), Other);
+
+		TakeDamage((AngleOfImpact - 90), Event, GetController(), Other);
+
+	}
 
 	// Deflect along the surface when we collide.
-	/*FRotator CurrentRotation = GetActorRotation();
-	SetActorRotation(FQuat::Slerp(CurrentRotation.Quaternion(), HitNormal.ToOrientationQuat(), 0.025f));*/
+	FRotator CurrentRotation = GetActorRotation();
+	SetActorRotation(FQuat::Slerp(CurrentRotation.Quaternion(), HitNormal.ToOrientationQuat(), 0.025f));
 }
 
 void APlaneCharacter::FlyingTick(float DeltaTime, bool LastIteration)
@@ -244,6 +357,11 @@ void APlaneCharacter::ThrustInput(float Val)
 
 void APlaneCharacter::Server_ThrustInput_Implementation(float Val)
 {
+	if (!bAlive)
+	{
+		return;
+	}
+
 	// Is there any input?
 	bool bHasInput = !FMath::IsNearlyEqual(Val, 0.f);
 	// If input is not held down, reduce speed
@@ -268,6 +386,11 @@ void APlaneCharacter::MoveUpInput(float Val)
 
 void APlaneCharacter::Server_MoveUpInput_Implementation(float Val)
 {
+	if (!bAlive)
+	{
+		return;
+	}
+
 	// Target pitch speed is based in input
 	float TargetPitchSpeed = (Val * TurnSpeed * -1.f);
 
@@ -292,6 +415,11 @@ void APlaneCharacter::MoveRightInput(float Val)
 
 void APlaneCharacter::Server_MoveRightInput_Implementation(float Val)
 {
+	if (!bAlive)
+	{
+		return;
+	}
+
 	// Target yaw speed is based on input
 	float TargetYawSpeed = (Val * TurnSpeed);
 
@@ -348,9 +476,29 @@ void APlaneCharacter::FireSecondaryWeaponInput(bool Pressed)
 	}
 }
 
-UPoolingManager * APlaneCharacter::Server_GetPoolingManager()
+void APlaneCharacter::ShowScoreBoard()
 {
-	UPoolingManager* PoolingManager = nullptr;
+	CheckPlayerRef();
+
+	if (PlayerController != nullptr)
+	{
+		PlayerController->ShowScoreBoard();
+	}
+}
+
+void APlaneCharacter::HideScoreBoard()
+{
+	CheckPlayerRef();
+
+	if (PlayerController != nullptr)
+	{
+		PlayerController->HideScoreBoard();
+	}
+}
+
+APoolingManager * APlaneCharacter::Server_GetPoolingManager()
+{
+	APoolingManager* PoolingManager = nullptr;
 
 	if (HasAuthority())
 	{
@@ -361,16 +509,23 @@ UPoolingManager * APlaneCharacter::Server_GetPoolingManager()
 			PoolingManager = GM->GetPoolingManager();
 		}
 	}
-	//GetGameMode
-	//Cast to my gamemode
-	//Get Pooling Manager;
 
 	return PoolingManager;
 }
 
 void APlaneCharacter::Server_FireSecondaryWeaponInput_Implementation(bool Pressed)
 {
+	if (SecondaryWeapon == nullptr)
+	{
+		return;
+	}
 
+	bFiringSecondaryWeapon = Pressed;
+	
+	if (bFiringSecondaryWeapon && CanFireWeapon(SecondaryWeapon))
+	{
+		Server_SecondaryWeaponFire();
+	}
 }
 bool APlaneCharacter::Server_FireSecondaryWeaponInput_Validate(bool Pressed)
 {
@@ -380,6 +535,32 @@ bool APlaneCharacter::Server_FireSecondaryWeaponInput_Validate(bool Pressed)
 bool APlaneCharacter::CanFireWeapon(AWeaponBase * Weapon)
 {
 	return Weapon == PrimaryWeapon ? bPrimaryWeaponReady : bSecondaryWeaponReady;
+}
+
+void APlaneCharacter::Client_OnPlayerDeath_Implementation()
+{
+
+}
+
+void APlaneCharacter::Client_OnPlayerRespawn_Implementation()
+{
+
+}
+
+void APlaneCharacter::Replicate_DisablePlane_Implementation()
+{
+	//Stop the pawn/camera from muving anywhere.
+	MovementComp->StopMovementImmediately();
+	CurrentForwardSpeed = 0;
+
+	//Hide the Plane
+	PlaneMesh->SetHiddenInGame(true);
+	SetActorEnableCollision(false);
+
+	Client_OnPlayerDeath();
+
+	//Disable any Inputs
+	bAlive = false;
 }
 
 // Called to bind functionality to input
@@ -400,5 +581,18 @@ void APlaneCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 
 	PlayerInputComponent->BindAction<FInputPressed>("FireSecondary", IE_Pressed, this, &APlaneCharacter::FireSecondaryWeaponInput, true);
 	PlayerInputComponent->BindAction<FInputPressed>("FireSecondary", IE_Released, this, &APlaneCharacter::FireSecondaryWeaponInput, false);
+
+
+	PlayerInputComponent->BindAction("OpenScoreboard", IE_Pressed, this, &APlaneCharacter::ShowScoreBoard);
+	PlayerInputComponent->BindAction("OpenScoreboard", IE_Released, this, &APlaneCharacter::HideScoreBoard);
+	
+}
+
+void APlaneCharacter::CheckPlayerRef()
+{
+	if (PlayerController == nullptr)
+	{
+		PlayerController = Cast<ADogfighterPlayerController>(GetController());
+	}
 }
 

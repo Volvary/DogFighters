@@ -31,14 +31,12 @@ void AMachineGun::Fire()
 	FVector EndPoint = OriginPoint + (Origin.GetRotation().GetForwardVector() * MaxHitScanRange);
 
 	FireHitscan(&HitResult,&Params);
-	
-	APlaneCharacter* Plane = Cast<APlaneCharacter>(HitResult.Actor);
 
-	if (Plane != nullptr)
+	if (HitResult.Actor != nullptr)
 	{
 		FDamageEvent Event;
 
-		Plane->TakeDamage(Damage, Event, WeaponOwner->GetController(), this);
+		HitResult.Actor->TakeDamage(Damage, Event, WeaponOwner->GetController(), this);
 	}
 
 	if (PoolingManager != nullptr && ProjectileClass != nullptr)
@@ -47,12 +45,15 @@ void AMachineGun::Fire()
 
 		if (Beam != nullptr)
 		{
-			//TODO: Replace with replicated setup.
-			Beam->SetActorLocation(OriginPoint + (Origin.GetRotation().GetForwardVector() * (MaxHitScanRange*0.5)));
-			Beam->SetActorRotation(Origin.GetRotation());
-
+			FTransform StartPoint;
+			
 			FVector BeamScale = Beam->GetActorScale3D();
-			Beam->SetActorScale3D(FVector(BeamScale.X,MaxHitScanRange*0.05,BeamScale.Z));
+
+			StartPoint.SetLocation(OriginPoint + (Origin.GetRotation().GetForwardVector() * (MaxHitScanRange*0.5)));
+			StartPoint.SetRotation(Origin.GetRotation());
+			StartPoint.SetScale3D(FVector(BeamScale.X,MaxHitScanRange*0.05,BeamScale.Z));
+
+			Beam->Server_SetStartPoint(StartPoint);
 			
 			Beam->SetLifetime(ProjectileLifeTime);
 		}

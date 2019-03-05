@@ -3,5 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "UnrealNetwork.h"
+#include "Online.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogFlying, Log, All);

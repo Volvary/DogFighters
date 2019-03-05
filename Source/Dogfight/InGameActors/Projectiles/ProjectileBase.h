@@ -25,14 +25,28 @@ public:
 	AProjectileBase();
 
 	//Called by the PoolingManager.
+	UFUNCTION(Server, WithValidation, Reliable)
+	void Server_EnableProjectile();
+
+	//Called by the PoolingManager.
+	UFUNCTION(Server, WithValidation, Reliable)
+	void Server_DisableProjectile();
+
 	UFUNCTION(NetMulticast, Reliable)
 	void EnableProjectile();
 
-	//Called by the PoolingManager.
 	UFUNCTION(NetMulticast, Reliable)
 	void DisableProjectile();
 
 	void SetLifetime(float NewLifetime);
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void Server_SetStartPoint(FTransform NewTransform);
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Replicate_SetStartPoint(FTransform NewTransform);
+
+
 
 protected:
 	// Called when the game starts or when spawned

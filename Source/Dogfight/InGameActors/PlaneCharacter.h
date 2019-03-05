@@ -12,7 +12,8 @@ class USpringArmComponent;
 class UCameraComponent;
 
 class AWeaponBase;
-class UPoolingManager;
+class APoolingManager;
+class ADogfighterPlayerController;
 
 UCLASS()
 class DOGFIGHT_API APlaneCharacter : public ACharacter
@@ -39,6 +40,10 @@ class DOGFIGHT_API APlaneCharacter : public ACharacter
 	AWeaponBase* PrimaryWeapon;
 	UPROPERTY()
 	AWeaponBase* SecondaryWeapon;
+
+	UPROPERTY(Transient)
+	ADogfighterPlayerController* PlayerController;
+
 protected:
 
 	/** How quickly forward speed changes */
@@ -94,12 +99,21 @@ protected:
 	UPROPERTY(BlueprintReadOnly)
 	float CurrentHealth = MaxHealth;
 
+	UPROPERTY(BlueprintReadOnly)
+	bool bAlive = true;
+
+	/** Resilience to Impact. Damage dealt in impact is equal to Angle x Resilience.*/
+	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly)
+	float ImpactResilience = 0.5f;
+
 public:
 	// Constructor required to assign our own CharacterMovementComponent
 	APlaneCharacter(const FObjectInitializer& OI);
 	
 	virtual float TakeDamage(float Damage, struct FDamageEvent const& DamageEvent,
 AController* EventInstigator, AActor* DamageCauser) override;
+
+	
 
 protected:
 	// Called when the game starts or when spawned
@@ -109,6 +123,7 @@ protected:
 	virtual void SetupPlayerInputComponent(class UInputComponent* InputComponent) override; // Allows binding actions/axes to functions
 	// End APawn overrides
 
+	void CheckPlayerRef();
 
 	///Inputs
 	/** Bound to the thrust axis */
@@ -133,11 +148,15 @@ protected:
 	void FireSecondaryWeaponInput(bool Pressed);
 	UFUNCTION(Server, Reliable, WithValidation)
 	void Server_FireSecondaryWeaponInput(bool Pressed);
+
+	void ShowScoreBoard();
+
+	void HideScoreBoard();
 	///End of Inputs
 
 	///Server Setup
 	/** Only available on server. Will give nullptr on clients.*/
-	UPoolingManager* Server_GetPoolingManager();
+	APoolingManager* Server_GetPoolingManager();
 	
 	///Server Weapon Firing
 	UFUNCTION(Server, Reliable, WithValidation)
@@ -155,7 +174,32 @@ protected:
 	void Server_SecondaryWeaponReady();
 
 
+	///Server Death
+	UFUNCTION(Server, Reliable, WithValidation)
+	void Server_OnPlayerDeath(AActor* Killer);
+
+	///Handles Replication related to a Player's death.
+	UFUNCTION(NetMulticast, Reliable)
+	void Replicate_OnPlayerDeath();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Replicate_OnPlayerRespawn(FTransform RespawnLocation);
+
+	UFUNCTION(BlueprintCallable , BlueprintNativeEvent)
+	void Client_OnPlayerRespawn();
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
+	void Client_OnPlayerDeath();
+
 public:	
+
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Replicate_DisablePlane();
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void Server_OnPlayerRespawn(FTransform RespawnLocation);
+
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 	virtual void NotifyHit(class UPrimitiveComponent* MyComp, class AActor* Other, class UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit) override;
@@ -171,4 +215,5 @@ public:
 	*/
 	UFUNCTION(Category = "Character Movement: Flying")
 	void FlyingTick(float DeltaTime, bool LastIteration);
+
 };

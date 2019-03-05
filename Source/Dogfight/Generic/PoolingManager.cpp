@@ -7,12 +7,12 @@
 #include "Dogfight.h"
 #include "InGameActors/Projectiles/ProjectileBase.h"
 
-UPoolingManager::UPoolingManager()
+APoolingManager::APoolingManager()
 {
 	
 }
 
-AProjectileBase * UPoolingManager::GetProjectileOfClass(TSubclassOf<AProjectileBase> ProjectileClass)
+AProjectileBase * APoolingManager::GetProjectileOfClass(TSubclassOf<AProjectileBase> ProjectileClass)
 {
 	if (ProjectileClass == nullptr || ProjectileClass == AProjectileBase::StaticClass())
 	{
@@ -27,10 +27,12 @@ AProjectileBase * UPoolingManager::GetProjectileOfClass(TSubclassOf<AProjectileB
 	{
 		for (AProjectileBase* Projectile : ProjectilePool)
 		{
-			if (Projectile != nullptr && Projectile->StaticClass() == ProjectileClass)
+			if (Projectile != nullptr && Projectile->IsA(ProjectileClass))
 			{
 				if (!Projectile->bActive)
 				{
+					Return = Projectile;
+
 					Projectile->EnableProjectile();
 					break;
 				}
@@ -44,7 +46,11 @@ AProjectileBase * UPoolingManager::GetProjectileOfClass(TSubclassOf<AProjectileB
 		FActorSpawnParameters ProjectileSpawnParams = FActorSpawnParameters();
 		ProjectileSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-		Return = GameModeWorld->SpawnActor<AProjectileBase>(ProjectileClass, ProjectileSpawnParams);
+		if (HasAuthority())
+		{
+			Return = GetWorld()->SpawnActor<AProjectileBase>(ProjectileClass, ProjectileSpawnParams);
+
+		}
 
 		if (Return != nullptr)
 		{
@@ -57,16 +63,14 @@ AProjectileBase * UPoolingManager::GetProjectileOfClass(TSubclassOf<AProjectileB
 	}
 	
 	//Enable the projectile for everyone before it's used.
-	Return->EnableProjectile();
+	if (Return != nullptr)
+	{
+		Return->EnableProjectile();
+	}
 	return Return;
 }
 
-void UPoolingManager::SetWorld(UWorld * GameWorld)
-{
-	GameModeWorld = GameWorld;
-}
-
-void UPoolingManager::OnGameEnd()
+void APoolingManager::OnGameEnd()
 {
 	//Destroy all spawned Projectiles since we cannot be sure we will need them next round.
 	for (AProjectileBase* Projectile : ProjectilePool)

@@ -10,7 +10,7 @@
 #include "WeaponBase.generated.h"
 
 class APlaneCharacter;
-class UPoolingManager;
+class APoolingManager;
 
 /**
  * 
@@ -47,7 +47,7 @@ protected:
 
 	APlaneCharacter* WeaponOwner;
 
-	UPoolingManager* PoolingManager;
+	APoolingManager* PoolingManager;
 
 public:
 
@@ -77,7 +77,7 @@ public:
 
 	void SetWeaponOwner(APlaneCharacter* NewOwner);
 
-	void SetPoolingManager(UPoolingManager* Pooling);
+	void SetPoolingManager(APoolingManager* Pooling);
 	
 protected:
 

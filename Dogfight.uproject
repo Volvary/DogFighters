@@ -10,7 +10,8 @@
 			"LoadingPhase": "Default",
 			"AdditionalDependencies": [
 				"Engine",
-				"CoreUObject"
+				"CoreUObject",
+				"UMG"
 			]
 		}
 	],
@@ -186,10 +187,6 @@
 				"IOS",
 				"TVOS"
 			]
-		},
-		{
-			"Name": "OnlineSubsystemNull",
-			"Enabled": false
 		},
 		{
 			"Name": "Paper2D",

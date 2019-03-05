@@ -19,9 +19,9 @@ AWeaponBase::AWeaponBase()
 #pragma optimize("",off)
 FTransform AWeaponBase::GetProjectileOrigin()
 {
-	FTransform Return = WeaponOwner->GetActorTransform();
+	SetActorRelativeLocation(ProjectileSpawnOffset);
 
-	Return.SetLocation(Return.GetLocation() + ProjectileSpawnOffset);
+	FTransform Return = GetActorTransform();
 
 	return Return;
 }
@@ -37,7 +37,7 @@ void AWeaponBase::SetWeaponOwner(APlaneCharacter * NewOwner)
 	WeaponOwner = NewOwner;
 }
 
-void AWeaponBase::SetPoolingManager(UPoolingManager * Pooling)
+void AWeaponBase::SetPoolingManager(APoolingManager * Pooling)
 {
 	PoolingManager = Pooling;
 }
