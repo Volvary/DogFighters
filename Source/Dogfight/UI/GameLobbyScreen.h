@@ -37,5 +37,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
 	void ReceiveServerName(const FText& InServerName);
+
+	UFUNCTION(BlueprintCallable)
+	void HostStartGame();
 	
 };

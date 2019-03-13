@@ -145,6 +145,12 @@ public:
 	UFUNCTION(Client, Reliable)
 	void Client_EndOfRound();
 
+	UFUNCTION()
+	void HostGame_StartMatch();
+
+	UFUNCTION(Server, WithValidation, Reliable)
+	void Server_StartMatch();
+
 protected:
 	virtual void SetupInputComponent() override;
 

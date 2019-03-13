@@ -2,6 +2,8 @@
 
 #include "GameLobbyScreen.h"
 
+#include "Generic/DogfighterPlayerController.h"
+
 void UGameLobbyScreen::RemovePlayerFromList_Implementation(FPlayerInformation RemovedPlayer)
 {
 
@@ -35,4 +37,11 @@ void UGameLobbyScreen::Replicate_UpdatePlayerInformation_Implementation(FPlayerI
 void UGameLobbyScreen::ReceiveServerName_Implementation(const FText& InServerName)
 {
 
+}
+
+void UGameLobbyScreen::HostStartGame()
+{
+	ADogfighterPlayerController* Player = Cast<ADogfighterPlayerController>(GetOwningPlayer());
+
+	Player->HostGame_StartMatch();
 }

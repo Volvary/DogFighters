@@ -51,6 +51,8 @@ protected:
 
 	float EndOfMatchWaitDelay = 5.0f;
 
+	ADogfighterPlayerController* ServerHost;
+
 public:
 
 	APlayGameMode();
@@ -77,6 +79,8 @@ public:
 	void StartMatch() override;
 
 	void EndMatch() override;
+
+	void RequestMatchStart(ADogfighterPlayerController* PlayerRequesting);
 
 	void EndOfMatchTimerFinished();
 

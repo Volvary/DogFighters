@@ -115,6 +115,11 @@ void APlayGameMode::PostLogin(APlayerController* NewPlayer)
 
 	ADogfighterPlayerController* Controller = Cast<ADogfighterPlayerController>(NewPlayer);
 
+	if (PlayersInServer.Num() == 0)
+	{
+		ServerHost = (ADogfighterPlayerController*)NewPlayer;
+	}
+
 	if (Controller != nullptr)
 	{
 		//Get the player's information
@@ -189,6 +194,14 @@ void APlayGameMode::EndMatch()
 	GetWorldTimerManager().SetTimer(EndOfMatchTimer, this, &APlayGameMode::EndOfMatchTimerFinished, EndOfMatchWaitDelay, false);
 }
 
+void APlayGameMode::RequestMatchStart(ADogfighterPlayerController* PlayerRequesting)
+{
+	if (PlayerRequesting == ServerHost)
+	{
+		StartMatch();
+	}
+}
+
 void APlayGameMode::EndOfMatchTimerFinished()
 {
 	TArray<ADogfighterPlayerController*> Players;
@@ -199,6 +212,7 @@ void APlayGameMode::EndOfMatchTimerFinished()
 		if (Player != nullptr)
 		{
 			Player->ShowGameLobbyScreen();
+			Player->HideScoreBoard();
 		}
 	}
 }

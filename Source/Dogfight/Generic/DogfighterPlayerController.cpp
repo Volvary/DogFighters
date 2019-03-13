@@ -284,6 +284,26 @@ FPlayerInformation ADogfighterPlayerController::GetPlayerInformation()
 	return PlayerInformation;
 }
 
+void ADogfighterPlayerController::HostGame_StartMatch()
+{
+	Server_StartMatch();
+}
+
+void ADogfighterPlayerController::Server_StartMatch_Implementation()
+{
+	APlayGameMode* GM = (APlayGameMode*)GetWorld()->GetAuthGameMode();
+
+	if (GM != nullptr)
+	{
+		GM->RequestMatchStart(this);
+	}
+}
+
+bool ADogfighterPlayerController::Server_StartMatch_Validate()
+{
+	return true;
+}
+
 void ADogfighterPlayerController::Client_EndOfRound_Implementation()
 {
 	ShowScoreBoard();
@@ -295,6 +315,9 @@ void ADogfighterPlayerController::Client_EndOfRound_Implementation()
 	{
 		Screen->SetVisibility(ESlateVisibility::Hidden);
 	}
+
+	GetWorldTimerManager().ClearAllTimersForObject(this);
+
 }
 
 void ADogfighterPlayerController::Server_EndOfRound_Implementation()
